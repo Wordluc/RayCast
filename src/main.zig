@@ -10,8 +10,8 @@ var screen: *c.SDL_Window = undefined;
 var render: *c.SDL_Renderer = undefined;
 var map: [8][8]bool = [8][8]bool{
     [8]bool{ true,true,true,true, true, true, true, true },
-    [8]bool{ true,false,false,false, false, false, false, true },
-    [8]bool{ true,false,false,false, false, false, false, true },
+    [8]bool{ true,false,false,false, false, false, true, true },
+    [8]bool{ true,false,false,false, false, false, true, true },
     [8]bool{ true,false,false,false, true, true, true, true },
     [8]bool{ true,false,false,false, false, false, false, true },
     [8]bool{ true,false,true,false, true, true, false, true },
@@ -90,9 +90,9 @@ pub fn main() !void {
         }
         draw_env();
         for (0..WIDTH) |x| {
-            var dist = get_dist_raycast(pos, angle_diff + angle +  angle_p) ;
-            dist*=math.sin((angle*0.80+angle_diff) * (math.pi / 180.0));
-            draw_vertical_line(@intCast(x), dist);
+            var r = get_dist_raycast(pos, angle_diff + angle +  angle_p) ;
+            r[0]*=math.pow(f32,math.sin((angle+angle_diff) * (math.pi / 180.0)),0.7);
+            draw_vertical_line(@intCast(x), r[0],r[1]);
 
             angle += incr_angle;
         }
@@ -121,8 +121,11 @@ fn draw_env() void {
     _ = c.SDL_RenderFillRect(render,&sky );
 }
 
-fn draw_vertical_line(x: c_int, dist: f32) void {
-    const c_fix:u8=@intFromFloat(dist*3.0);
+fn draw_vertical_line(x: c_int, dist: f32,is_edge:bool) void {
+    var c_fix:u8=@intFromFloat(dist*3.0);
+    if (is_edge){
+        c_fix+=5;
+    }
     var y_to_fill: c_int =undefined;    
     if (math.round(dist)==0){
         y_to_fill=HEIGHT;
@@ -142,7 +145,7 @@ fn draw_vertical_line(x: c_int, dist: f32) void {
         _= c.SDL_RenderDrawPoint(render,x,y_empty + y_to_fill+i_c);
     }
 }
-fn get_dist_raycast(origin: vect2D, angle: f32) f32 {
+fn get_dist_raycast(origin: vect2D, angle: f32) struct{f32,bool} {
     var x: f32 = origin.x;
     var y: f32 = origin.y;
     var x_i: usize = @intFromFloat(x);
@@ -157,6 +160,18 @@ fn get_dist_raycast(origin: vect2D, angle: f32) f32 {
         y_i = @intFromFloat(y);
         dis+=0.01;
     }
+    var is_edge=false;
+    x += cos*0.01;
+    const x_right:usize = @intFromFloat(x);
+    x -= cos*0.01;
+    x -= cos*0.01;
+    const x_left:usize = @intFromFloat(x);
+    if (map[x_right][y_i] and !map[x_left][y_i]){
+        is_edge=true;
+    }
+    if (!map[x_right][y_i] and map[x_left][y_i]){
+        is_edge=true;
+    }
     //dis-=(1-math.sqrt(math.pow(f32, cot, 2) + 1));
-        return dis;
+        return .{dis,is_edge};
 }
