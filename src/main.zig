@@ -40,7 +40,7 @@ pub fn main() !void {
     const fov=90.0;
     const incr_angle = fov / 1400.0;
     var act_cos=false;
-    const angle_diff=45;
+    const angle_diff=(180-fov)/2;
     while (!quit) {
         while (c.SDL_PollEvent(&event) != 0) {
             switch (event.type) {
@@ -64,10 +64,10 @@ pub fn main() !void {
                 angle_p=360-angle_p;
             }
         }
-        const head_angle=angle_p+angle_diff+fov/2;
+        const angle_camera=angle_p+angle_diff+fov/2;
         if (keyboard[c.SDL_SCANCODE_DOWN] == 1) {
-            pos.y-=math.sin(head_angle * (math.pi / 180.0))*0.1;
-            pos.x-=math.cos(head_angle * (math.pi / 180.0))*0.1;
+            pos.y-=math.sin(angle_camera * (math.pi / 180.0))*0.1;
+            pos.x-=math.cos(angle_camera * (math.pi / 180.0))*0.1;
             if (pos.x <= 1){
                 pos.x=1;
             }
@@ -76,8 +76,8 @@ pub fn main() !void {
             }
         }
         if (keyboard[c.SDL_SCANCODE_UP] == 1) {
-            pos.y+=math.sin(head_angle * (math.pi / 180.0))*0.1;
-            pos.x+=math.cos(head_angle * (math.pi / 180.0))*0.1;
+            pos.y+=math.sin(angle_camera * (math.pi / 180.0))*0.1;
+            pos.x+=math.cos(angle_camera * (math.pi / 180.0))*0.1;
             if (pos.x >= map.len){
                 pos.x=map.len-2;
             }
