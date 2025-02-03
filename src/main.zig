@@ -20,6 +20,8 @@ var map: [8][8]bool = [8][8]bool{
 };
 const WIDTH = 1000;
 const HEIGHT = 600;
+const size_part_wall = 10;
+var count_to_draw_wall: c_int = size_part_wall;
 pub fn main() !void {
     if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
         return GAME.INIT;
@@ -102,10 +104,13 @@ pub fn main() !void {
         }
         draw_env();
         for (0..WIDTH) |x| {
-            var r = get_dist_raycast(pos, angle_diff + angle + angle_p);
-            r[0] *= math.pow(f32, math.sin((angle + angle_diff) * (math.pi / 180.0)), 0.7);
-            draw_vertical_line(@intCast(x), r[0], r[1]);
-
+            if (count_to_draw_wall == 0) {
+                var r = get_dist_raycast(pos, angle_diff + angle + angle_p);
+                r[0] *= math.pow(f32, math.sin((angle + angle_diff) * (math.pi / 180.0)), 0.7);
+                draw_vertical_line(@intCast(x), r[0], r[1]);
+                count_to_draw_wall = size_part_wall;
+            }
+            count_to_draw_wall -= 1;
             angle += incr_angle;
         }
         angle = 0;
@@ -134,8 +139,10 @@ fn draw_vertical_line(x: c_int, dist: f32, is_edge: bool) void {
         y_to_fill = @intFromFloat(@divFloor(HEIGHT, dist));
     }
     const y_empty = @divFloor(HEIGHT - y_to_fill, 2);
+
+    var wall_part: c.SDL_Rect = c.SDL_Rect{ .y = y_empty, .x = x, .h = y_to_fill, .w = size_part_wall };
     _ = c.SDL_SetRenderDrawColor(render, 100 - c_fix, 100 - c_fix, 100 - c_fix, 0);
-    _ = c.SDL_RenderDrawLine(render, x, y_empty, x, y_empty + y_to_fill);
+    _ = c.SDL_RenderFillRect(render, &wall_part);
 
     var i_c: c_int = undefined;
     var color: u8 = 100 - c_fix;
@@ -143,7 +150,8 @@ fn draw_vertical_line(x: c_int, dist: f32, is_edge: bool) void {
         color -= 2;
         i_c = @intCast(i);
         _ = c.SDL_SetRenderDrawColor(render, color, color, color, 0);
-        _ = c.SDL_RenderDrawPoint(render, x, y_empty + y_to_fill + i_c);
+        wall_part = c.SDL_Rect{ .y = y_to_fill + y_empty + i_c, .x = x, .h = 1, .w = size_part_wall };
+        _ = c.SDL_RenderFillRect(render, &wall_part);
     }
 }
 fn get_dist_raycast(origin: vect2D, angle: f32) struct { f32, bool } {
