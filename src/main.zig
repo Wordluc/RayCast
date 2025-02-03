@@ -21,7 +21,6 @@ var map: [8][8]bool = [8][8]bool{
 const WIDTH = 1000;
 const HEIGHT = 600;
 const size_part_wall = 3;
-var count_to_draw_wall: c_int = 0;
 pub fn main() !void {
     if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
         return GAME.INIT;
@@ -43,10 +42,11 @@ pub fn main() !void {
     const incr_angle = fov / @as(f32, @floatCast(WIDTH));
     var act_cos = false;
     const angle_diff = (180 - fov) / 2;
-    var a: u32 = 0;
-    var b: u32 = 0;
+    var tick_after: u32 = 0;
+    var tick_before: u32 = 0;
     const angle_speed = 1.8;
     const move_speed = 0.05;
+    var x:c_int=0;
     while (!quit) {
         while (c.SDL_PollEvent(&event) != 0) {
             switch (event.type) {
@@ -57,15 +57,6 @@ pub fn main() !void {
                 else => {},
             }
         }
-        a = c.SDL_GetTicks();
-        const delta = a - b;
-
-        if (!(delta > @as(u32, @divFloor(1000.0, 60.0)))) {
-            continue;
-        }
-        //       std::cout << "fps: " << 1000 / delta << std::endl;
-        std.debug.print("fps: {}\n", .{1000 / delta});
-        b = a;
         if (keyboard[c.SDL_SCANCODE_LEFT] == 1) {
             angle_p -= angle_speed;
             if (angle_p <= 0) {
@@ -82,40 +73,50 @@ pub fn main() !void {
         if (keyboard[c.SDL_SCANCODE_DOWN] == 1) {
             pos.y -= math.sin(angle_camera * (math.pi / 180.0)) * move_speed;
             pos.x -= math.cos(angle_camera * (math.pi / 180.0)) * move_speed;
-            if (pos.x <= 1) {
-                pos.x = 1;
-            }
-            if (pos.y <= 1) {
-                pos.y = 1;
+            if (map[@as(usize,@intFromFloat(pos.x))][@as(usize,@intFromFloat(pos.y))]){
+                pos.y += math.sin(angle_camera * (math.pi / 180.0)) * move_speed;
+                pos.x += math.cos(angle_camera * (math.pi / 180.0)) * move_speed;
             }
         }
         if (keyboard[c.SDL_SCANCODE_UP] == 1) {
             pos.y += math.sin(angle_camera * (math.pi / 180.0)) * move_speed;
             pos.x += math.cos(angle_camera * (math.pi / 180.0)) * move_speed;
-            if (pos.x >= map.len) {
-                pos.x = map.len - 2;
+            if (map[@as(usize,@intFromFloat(pos.x))][@as(usize,@intFromFloat(pos.y))]){
+                pos.y -= math.sin(angle_camera * (math.pi / 180.0)) * move_speed;
+                pos.x -= math.cos(angle_camera * (math.pi / 180.0)) * move_speed;
             }
-            if (pos.y >= map.len) {
-                pos.y = map.len - 2;
-            }
+        }
+        if (pos.x <= 1) {
+            pos.x = 1;
+        }
+        if (pos.y <= 1) {
+            pos.y = 1;
+        }
+        if (pos.x >= map.len) {
+            pos.x = map.len - 2;
+        }
+        if (pos.y >= map.len) {
+            pos.y = map.len - 2;
         }
         if (keyboard[c.SDL_SCANCODE_F] == 1) {
             act_cos = !act_cos;
         }
         draw_env();
-        for (0..WIDTH) |x| {
-            if (count_to_draw_wall == 0) {
-                var r = get_dist_raycast(pos, angle_diff + angle + angle_p);
-                r[0] *= math.pow(f32, math.sin((angle + angle_diff) * (math.pi / 180.0)), 0.7);
-                draw_vertical_line(@intCast(x), r[0], r[1]);
-                count_to_draw_wall = size_part_wall;
-            }
-            count_to_draw_wall -= 1;
-            angle += incr_angle;
+        while (x<WIDTH):(x+=size_part_wall) {
+            var r = get_dist_raycast(pos, angle_diff + angle + angle_p);
+            r[0] *= math.pow(f32, math.sin((angle + angle_diff) * (math.pi / 180.0)), 0.7);
+            draw_vertical_line(@intCast(x), r[0], r[1]);
+            angle += incr_angle*size_part_wall;
         }
-        count_to_draw_wall = 0;
+        x=0;
         angle = 0;
         c.SDL_RenderPresent(render);
+        tick_after = c.SDL_GetTicks();
+        const delta = tick_after - tick_before;
+        tick_before = tick_after;
+        if ((delta < @as(u32, @divFloor(1000.0, 60.0)))) {
+            c.SDL_Delay(@as(c.Uint32, @divFloor(1000.0, 60.0))-delta);
+        }
     }
 }
 fn draw_env() void {
