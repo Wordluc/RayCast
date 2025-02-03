@@ -20,8 +20,8 @@ var map: [8][8]bool = [8][8]bool{
 };
 const WIDTH = 1000;
 const HEIGHT = 600;
-const size_part_wall = 10;
-var count_to_draw_wall: c_int = size_part_wall;
+const size_part_wall = 3;
+var count_to_draw_wall: c_int = 0;
 pub fn main() !void {
     if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
         return GAME.INIT;
@@ -113,6 +113,7 @@ pub fn main() !void {
             count_to_draw_wall -= 1;
             angle += incr_angle;
         }
+        count_to_draw_wall = 0;
         angle = 0;
         c.SDL_RenderPresent(render);
     }
