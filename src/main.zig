@@ -20,7 +20,7 @@ var map: [8][8]bool = [8][8]bool{
 };
 const WIDTH = 1000;
 const HEIGHT = 600;
-const size_part_wall = 3;
+const fps=100.0;
 fn draw_surface(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,color:c.Uint32) void{
     var tempX:usize=0;
     var tempY:usize=0;
@@ -65,8 +65,8 @@ pub fn main() !void {
     const incr_angle = fov / @as(f32, @floatCast(WIDTH));
     var act_cos = false;
     const angle_diff = (180 - fov) / 2;
-    var tick_after: u32 = 0;
-    var tick_before: u32 = 0;
+    var now_thick: u32 = 0;
+    var before_tick: u32 = 0;
     const angle_speed = 1.8;
     const move_speed = 0.05;
     var x:c_int=0;
@@ -80,12 +80,13 @@ pub fn main() !void {
                 else => {},
             }
         }
-        tick_after = c.SDL_GetTicks();
-        const delta = tick_after - tick_before;
-        tick_before = tick_after;
-        if ((delta > @as(u32, @divFloor(1000.0, 60.0)))) {
+        now_thick = c.SDL_GetTicks();
+        const delta = now_thick - before_tick;
+        if ((delta < @as(u32, @divFloor(1000.0,fps)))) {
+            c.SDL_Delay(@as(u32, @divFloor(1000.0,fps))-delta);
             continue;
         }
+        before_tick = now_thick;
         if (keyboard[c.SDL_SCANCODE_LEFT] == 1) {
             angle_p -= angle_speed;
             if (angle_p <= 0) {
@@ -131,11 +132,11 @@ pub fn main() !void {
             act_cos = !act_cos;
         }
         draw_env();
-        while (x<WIDTH):(x+=size_part_wall) {
+        while (x<WIDTH):(x+=1) {
             var r = get_dist_raycast(pos, angle_diff + angle + angle_p);
             r[0] *= math.pow(f32, math.sin((angle + angle_diff) * (math.pi / 180.0)), 0.7);
             draw(@intCast(x), r[0], r[1]);
-            angle += incr_angle*size_part_wall;
+            angle += incr_angle;
         }
         x=0;
         angle = 0;
@@ -161,14 +162,14 @@ fn draw(x: c_int, dist: f32, is_edge: bool) void {
     }
     const y_empty = @divFloor(HEIGHT - y_to_fill, 2);
 
-    draw_surface(surface, y_to_fill, size_part_wall, x, y_empty, c.SDL_MapRGB(surface.format, 100 - c_fix, 100 - c_fix, 100 - c_fix));
+    draw_surface(surface, y_to_fill, 1, x, y_empty, c.SDL_MapRGB(surface.format, 100 - c_fix, 100 - c_fix, 100 - c_fix));
 
     var i_c: c_int = undefined;
     var color: u8 = 100 - c_fix;
     for (0..10) |i| {
         color -= 2;
         i_c = @intCast(i);
-        draw_surface(surface, 1, size_part_wall, x, y_to_fill + y_empty + i_c, c.SDL_MapRGB(surface.format,color, color, color));
+        draw_surface(surface, 1, 1, x, y_to_fill + y_empty + i_c, c.SDL_MapRGB(surface.format,color, color, color));
     }
 }
 fn get_dist_raycast(origin: vect2D, angle: f32) struct { f32, bool } {
