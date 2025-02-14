@@ -7,7 +7,7 @@ const vect2D = struct {
     y: f32,
 };
 var screen: *c.SDL_Window = undefined;
-var render: *c.SDL_Renderer = undefined;
+var surface: *c.SDL_Surface = undefined;
 var map: [8][8]bool = [8][8]bool{
     [8]bool{ true, true, true, true, true, true, true, true },
     [8]bool{ true, false, false, false, false, false, true, true },
@@ -21,13 +21,34 @@ var map: [8][8]bool = [8][8]bool{
 const WIDTH = 1000;
 const HEIGHT = 600;
 const size_part_wall = 3;
+fn draw_surface(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,color:c.Uint32) void{
+    var tempX:usize=0;
+    var tempY:usize=0;
+    var _x=x;
+    var _y=y;
+    if (_x<0){
+        _x=0;
+    }
+    if (_y<0){
+        _y=0;
+    }
+    for (0..@intCast(h))|ih|{
+        for (0..@intCast(w))|iw|{
+            tempX=@as(usize, @intCast(_x))+iw;
+            tempY=(@as(usize, @intCast(_y))+ih)*WIDTH;
+            const pixels_ptr: [*]u32 = @alignCast( @ptrCast(surf.pixels.?));
+
+            pixels_ptr[tempY+tempX]=color;
+        }
+    }
+}
 pub fn main() !void {
     if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
         return GAME.INIT;
     }
     defer c.SDL_Quit();
     screen = c.SDL_CreateWindow("Ray Cast", 10, 10, WIDTH, HEIGHT, c.SDL_WINDOW_OPENGL) orelse return GAME.INIT;
-    render = c.SDL_CreateRenderer(screen, 0, 0) orelse return GAME.INIT;
+    surface = c.SDL_GetWindowSurface(screen);
     var event: c.SDL_Event = undefined;
     var quit: bool = false;
     var angle: f32 = 0;
@@ -56,6 +77,12 @@ pub fn main() !void {
                 },
                 else => {},
             }
+        }
+        tick_after = c.SDL_GetTicks();
+        const delta = tick_after - tick_before;
+        tick_before = tick_after;
+        if ((delta > @as(u32, @divFloor(1000.0, 60.0)))) {
+            continue;
         }
         if (keyboard[c.SDL_SCANCODE_LEFT] == 1) {
             angle_p -= angle_speed;
@@ -105,31 +132,21 @@ pub fn main() !void {
         while (x<WIDTH):(x+=size_part_wall) {
             var r = get_dist_raycast(pos, angle_diff + angle + angle_p);
             r[0] *= math.pow(f32, math.sin((angle + angle_diff) * (math.pi / 180.0)), 0.7);
-            draw_vertical_line(@intCast(x), r[0], r[1]);
+            draw(@intCast(x), r[0], r[1]);
             angle += incr_angle*size_part_wall;
         }
         x=0;
         angle = 0;
-        c.SDL_RenderPresent(render);
-        tick_after = c.SDL_GetTicks();
-        const delta = tick_after - tick_before;
-        tick_before = tick_after;
-        if ((delta < @as(u32, @divFloor(1000.0, 60.0)))) {
-            c.SDL_Delay(@as(c.Uint32, @divFloor(1000.0, 60.0))-delta);
-        }
+        //apply surface
+        _=c.SDL_UpdateWindowSurface(screen);
     }
 }
 fn draw_env() void {
-    const floor: c.SDL_Rect = c.SDL_Rect{ .y = @divFloor(HEIGHT, 2), .x = 0, .h = @divFloor(HEIGHT, 2), .w = WIDTH };
-    _ = c.SDL_SetRenderDrawColor(render, 150, 150, 150, 150);
-    _ = c.SDL_RenderFillRect(render, &floor);
-
-    const sky: c.SDL_Rect = c.SDL_Rect{ .x = 0, .y = 0, .h = @divFloor(HEIGHT, 2), .w = WIDTH };
-    _ = c.SDL_SetRenderDrawColor(render, 0, 191, 255, 0);
-    _ = c.SDL_RenderFillRect(render, &sky);
+    draw_surface(surface,@divFloor(HEIGHT, 2),WIDTH,0,0,c.SDL_MapRGB(surface.format,0, 191, 255));
+    draw_surface(surface,@divFloor(HEIGHT, 2),WIDTH,0,@divFloor(HEIGHT, 2),c.SDL_MapRGB(surface.format,150, 150, 150));
 }
 
-fn draw_vertical_line(x: c_int, dist: f32, is_edge: bool) void {
+fn draw(x: c_int, dist: f32, is_edge: bool) void {
     var c_fix: u8 = @intFromFloat(dist * 3.0);
     if (is_edge) {
         c_fix += 5;
@@ -142,18 +159,14 @@ fn draw_vertical_line(x: c_int, dist: f32, is_edge: bool) void {
     }
     const y_empty = @divFloor(HEIGHT - y_to_fill, 2);
 
-    var wall_part: c.SDL_Rect = c.SDL_Rect{ .y = y_empty, .x = x, .h = y_to_fill, .w = size_part_wall };
-    _ = c.SDL_SetRenderDrawColor(render, 100 - c_fix, 100 - c_fix, 100 - c_fix, 0);
-    _ = c.SDL_RenderFillRect(render, &wall_part);
+    draw_surface(surface, y_to_fill, size_part_wall, x, y_empty, c.SDL_MapRGB(surface.format, 100 - c_fix, 100 - c_fix, 100 - c_fix));
 
     var i_c: c_int = undefined;
     var color: u8 = 100 - c_fix;
     for (0..10) |i| {
         color -= 2;
         i_c = @intCast(i);
-        _ = c.SDL_SetRenderDrawColor(render, color, color, color, 0);
-        wall_part = c.SDL_Rect{ .y = y_to_fill + y_empty + i_c, .x = x, .h = 1, .w = size_part_wall };
-        _ = c.SDL_RenderFillRect(render, &wall_part);
+        draw_surface(surface, 1, size_part_wall, x, y_to_fill + y_empty + i_c, c.SDL_MapRGB(surface.format,color, color, color));
     }
 }
 fn get_dist_raycast(origin: vect2D, angle: f32) struct { f32, bool } {
@@ -183,6 +196,5 @@ fn get_dist_raycast(origin: vect2D, angle: f32) struct { f32, bool } {
     if (!map[x_right][y_i] and map[x_left][y_i]) {
         is_edge = true;
     }
-    //dis-=(1-math.sqrt(math.pow(f32, cot, 2) + 1));
     return .{ dis, is_edge };
 }
