@@ -37,7 +37,9 @@ fn draw_surface(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,color:c.Ui
             tempX=@as(usize, @intCast(_x))+iw;
             tempY=(@as(usize, @intCast(_y))+ih)*WIDTH;
             const pixels_ptr: [*]u32 = @alignCast( @ptrCast(surf.pixels.?));
-
+            if (tempX + tempY >= WIDTH*HEIGHT){
+                return ;
+            }
             pixels_ptr[tempY+tempX]=color;
         }
     }
