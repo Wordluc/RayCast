@@ -25,6 +25,7 @@ pub fn build(b: *std.Build) void {
         // The SDL package doesn't work for Linux yet, so we rely on system
         // packages for now.
         exe.linkSystemLibrary("SDL2");
+        exe.linkSystemLibrary("SDL2_Image");
         exe.linkLibC();
     } else {
         exe.addIncludePath(.{ .cwd_relative = "SDL//include//SDL2/" });
