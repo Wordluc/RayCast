@@ -208,10 +208,13 @@ fn draw_env() void {
 
 fn draw(x: c_int, raycast:raycast_result) !void {
     var y_to_fill: c_int = undefined;
-    if (math.round(raycast.distance) == 0) {
+    if (raycast.distance == 0) {
         y_to_fill = HEIGHT;
     } else {
         y_to_fill = @intFromFloat(@divFloor(HEIGHT, raycast.distance));
+    }
+    if (y_to_fill > HEIGHT){
+        y_to_fill = HEIGHT;
     }
     const y_empty = @divFloor(HEIGHT - y_to_fill, 2);
     try draw_texture(surface, y_to_fill, 1, x, y_empty,raycast.sprite_perc,@intFromFloat(raycast.distance * 10.0));
