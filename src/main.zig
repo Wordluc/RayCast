@@ -28,6 +28,7 @@ var map: [8][8]bool = [8][8]bool{
 const WIDTH = 1000;
 const HEIGHT = 600;
 const fps=100.0;
+var colors:[3]c.Uint8=undefined;
 fn draw_surface(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,color:c.Uint32) void{
     var tempX:usize=0;
     var tempY:usize=0;
@@ -68,8 +69,6 @@ fn draw_texture(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,perc_wall:
     const pixels_text: [*]u8 = @alignCast( @ptrCast(texture.pixels.?));
     tempX_texture=@intFromFloat(perc_wall*@as(f32,@floatFromInt(texture.w)));
 
-    var colors=(try std.heap.c_allocator.alloc(c.Uint8, 3));
-    defer std.heap.c_allocator.free(colors);
     for (0..@intCast(h))|ih|{
         tempY_texture=@divFloor(ih*@as(usize,@intCast(texture.h)),@as(usize, @intCast(h)))*@as(usize,@intCast(texture.w));
         for (0..@intCast(w))|iw|{
@@ -110,6 +109,9 @@ pub fn main() !void {
         .x = 2,
         .y = 3,
     };
+    const arr=(try std.heap.c_allocator.alloc(c.Uint8, 3));
+        defer std.heap.c_allocator.free(arr);
+    colors=(arr[0..3]).*;
     var angle_p: f32 = 0;
     var keyboard: [*c]const c.Uint8 = undefined;
     keyboard = c.SDL_GetKeyboardState(null);
@@ -220,8 +222,6 @@ fn draw(x: c_int, raycast:raycast_result) !void {
     try draw_texture(surface, y_to_fill, 1, x, y_empty,raycast.sprite_perc,@intFromFloat(raycast.distance * 10.0));
 
     var i_c: c.Uint8 = 0;
-    var colors=(try std.heap.c_allocator.alloc(c.Uint8, 3));
-    defer std.heap.c_allocator.free(colors);
     for (@intCast(y_empty+y_to_fill-10)..@intCast(y_empty+y_to_fill))|ih|{
         i_c+=10;
         const tempX=@as(usize, @intCast(x));
