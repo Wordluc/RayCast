@@ -51,7 +51,7 @@ fn draw_surface(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,color:c.Ui
         }
     }
 }
-fn draw_texture(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,perc_wall:f32) void{
+fn draw_texture(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,perc_wall:f32,perc_shadow:u8) !void{
     var tempX:usize=0;
     var tempY:usize=0;
     var tempX_texture:usize=0;
@@ -63,11 +63,13 @@ fn draw_texture(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,perc_wall:
     }
     if (_y<0){
         _y=0;
-
     }
     const pixels_ptr: [*]u32 = @alignCast( @ptrCast(surf.pixels.?));
     const pixels_text: [*]u8 = @alignCast( @ptrCast(texture.pixels.?));
     tempX_texture=@intFromFloat(perc_wall*@as(f32,@floatFromInt(texture.w)));
+
+    var colors=(try std.heap.c_allocator.alloc(c.Uint8, 3));
+    defer std.heap.c_allocator.free(colors);
     for (0..@intCast(h))|ih|{
         tempY_texture=@divFloor(ih*@as(usize,@intCast(texture.h)),@as(usize, @intCast(h)))*@as(usize,@intCast(texture.w));
         for (0..@intCast(w))|iw|{
@@ -79,6 +81,15 @@ fn draw_texture(surf : *c.SDL_Surface,h:c_int,w:c_int,x:c_int,y:c_int,perc_wall:
                 return ;
             }
             pixels_ptr[tempY+tempX]=pixels_text[tempY_texture+tempX_texture];
+            c.SDL_GetRGB(pixels_ptr[tempY+tempX], surface.format, &colors[0], &colors[1], &colors[2]);
+            for (0..,colors) |i,col|{
+                if (perc_shadow>col){
+                    colors[i]=0;
+                    continue;
+                }
+                colors[i]-=perc_shadow;
+            }
+            pixels_ptr[tempX+tempY]=c.SDL_MapRGB(surface.format, colors[0], colors[1], colors[2]);
         }
     }
 }
@@ -112,6 +123,8 @@ pub fn main() !void {
     const move_speed = 0.05;
     var x:c_int=0;
     texture=ci.IMG_Load("./wall.png") orelse return GAME.INIT;
+    var sin_char:f32=undefined;
+    var cos_char:f32=undefined;
     while (!quit) {
         while (c.SDL_PollEvent(&event) != 0) {
             switch (event.type) {
@@ -142,20 +155,22 @@ pub fn main() !void {
             }
         }
         const angle_camera = angle_p + angle_diff + fov / 2;
+        sin_char=math.sin(angle_camera * (math.pi / 180.0));
+        cos_char=math.cos(angle_camera * (math.pi / 180.0));
         if (keyboard[c.SDL_SCANCODE_DOWN] == 1) {
-            pos.y -= math.sin(angle_camera * (math.pi / 180.0)) * move_speed;
-            pos.x -= math.cos(angle_camera * (math.pi / 180.0)) * move_speed;
+            pos.y -= sin_char * move_speed;
+            pos.x -= cos_char * move_speed;
             if (map[@as(usize,@intFromFloat(pos.x))][@as(usize,@intFromFloat(pos.y))]){
-                pos.y += math.sin(angle_camera * (math.pi / 180.0)) * move_speed;
-                pos.x += math.cos(angle_camera * (math.pi / 180.0)) * move_speed;
+                pos.y += sin_char * move_speed;
+                pos.x += cos_char * move_speed;
             }
         }
         if (keyboard[c.SDL_SCANCODE_UP] == 1) {
-            pos.y += math.sin(angle_camera * (math.pi / 180.0)) * move_speed;
-            pos.x += math.cos(angle_camera * (math.pi / 180.0)) * move_speed;
+            pos.y += sin_char * move_speed;
+            pos.x += cos_char * move_speed;
             if (map[@as(usize,@intFromFloat(pos.x))][@as(usize,@intFromFloat(pos.y))]){
-                pos.y -= math.sin(angle_camera * (math.pi / 180.0)) * move_speed;
-                pos.x -= math.cos(angle_camera * (math.pi / 180.0)) * move_speed;
+                pos.y -= sin_char * move_speed;
+                pos.x -= cos_char * move_speed;
             }
         }
         if (pos.x <= 1) {
@@ -177,7 +192,7 @@ pub fn main() !void {
         while (x<WIDTH):(x+=1) {
             var r = get_dist_raycast(pos, angle_diff + angle + angle_p);
             r.distance *= math.pow(f32, math.sin((angle + angle_diff) * (math.pi / 180.0)), 0.7);
-            draw(@intCast(x), r);
+            try draw(@intCast(x), r);
             angle += incr_angle;
         }
         x=0;
@@ -191,7 +206,7 @@ fn draw_env() void {
     draw_surface(surface,@divFloor(HEIGHT, 2),WIDTH,0,@divFloor(HEIGHT, 2),c.SDL_MapRGB(surface.format,150, 150, 150));
 }
 
-fn draw(x: c_int, raycast:raycast_result) void {
+fn draw(x: c_int, raycast:raycast_result) !void {
     var y_to_fill: c_int = undefined;
     if (math.round(raycast.distance) == 0) {
         y_to_fill = HEIGHT;
@@ -199,16 +214,26 @@ fn draw(x: c_int, raycast:raycast_result) void {
         y_to_fill = @intFromFloat(@divFloor(HEIGHT, raycast.distance));
     }
     const y_empty = @divFloor(HEIGHT - y_to_fill, 2);
+    try draw_texture(surface, y_to_fill, 1, x, y_empty,raycast.sprite_perc,@intFromFloat(raycast.distance * 10.0));
 
-    draw_texture(surface, y_to_fill, 1, x, y_empty,raycast.sprite_perc);
-//    ambient occlusion
-//    var i_c: c_int = undefined;
-//    var color: u8 = 255;
-//    for (0..10) |i| {
-//        color -= 2;
-//        i_c = @intCast(i);
-//        draw_surface(surface, 1, 1, x, y_to_fill + y_empty + i_c, c.SDL_MapRGBA(surface.format,color, color, color));
-//    }
+    var i_c: c.Uint8 = 0;
+    var colors=(try std.heap.c_allocator.alloc(c.Uint8, 3));
+    defer std.heap.c_allocator.free(colors);
+    for (@intCast(y_empty+y_to_fill-10)..@intCast(y_empty+y_to_fill))|ih|{
+        i_c+=10;
+        const tempX=@as(usize, @intCast(x));
+        const tempY=(ih)*WIDTH;
+        const pixels_ptr: [*]u32 = @alignCast( @ptrCast(surface.pixels.?));
+        c.SDL_GetRGB(pixels_ptr[tempY+tempX], surface.format, &colors[0], &colors[1], &colors[2]);
+        for (0..,colors) |i,col|{
+            if (i_c>col){
+                colors[i]=0;
+                continue;
+            }
+            colors[i]-=i_c;
+        }
+        pixels_ptr[tempX+tempY]=c.SDL_MapRGB(surface.format, colors[0], colors[1], colors[2]);
+    }
 }
 fn get_dist_raycast(origin: vect2D, angle: f32) raycast_result {
     var x: f32 = origin.x;
